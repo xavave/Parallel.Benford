@@ -71,8 +71,49 @@ internal class Program
 
         return output;
     }
-
     private static async Task<Package> ProcessImageFile(string file)
+    {
+        var package = new Package(); // Use package so data can be passed to methods by ref
+
+        using (var img = await Image.LoadAsync<Rgba32>(file))
+        {
+            img.ProcessPixelRows(accessor =>
+            {
+                for (var y = 0; y < accessor.Height; y++)
+                {
+                    var pixelRow = accessor.GetRowSpan(y);
+
+                    // pixelRow.Length has the same value as accessor.Width,
+                    // but using pixelRow.Length allows the JIT to optimize away bounds checks:
+                    for (var x = 0; x < pixelRow.Length; x++)
+                    {
+                        // Get a reference to the pixel at position x
+                        ref var pixel = ref pixelRow[x];
+
+                        // Convert pixel data into 32-bit RGBA value
+                        var _string = ((uint)((pixel.R > 0 ? pixel.R : 1) * (pixel.G > 0 ? pixel.G : 1) *
+                                               (pixel.B > 0 ? pixel.B : 1) * (pixel.A > 0 ? pixel.A : 1))).ToString();
+
+                        // Get the first digit of the value
+                        var val = _string.Substring(0, 1);
+
+                        //if (file.Contains("santa"))
+                        //    await Console.Out.WriteLineAsync(_string);
+
+                        // Increment the count for each first digit value (1-9)
+
+                       package.Data[int.Parse(val) - 1]++;
+
+                        // Count total pixels evaluated
+                        package.Total++;
+                    }
+                }
+            });
+        }
+
+        return package;
+    }
+    private static async Task<Package> ParallelProcessImageFile(string file)
     {
         var package = new Package(); // Use package so data can be passed to methods by ref
 
@@ -146,30 +187,7 @@ internal class Program
 
             #region Analyze 2020 Election Results
 
-            foreach (var electionFile in electionFiles)
-            {
-                var list = await File.ReadAllLinesAsync(Path.Combine(pathPrefix, electionFile));
-                var package = new Package();
-                var _output = new StringBuilder();
-                double total = 0;
-                _output.Append($"Analyzing {electionFile} ({list.Length:0,000}" + " items)...\r\n---------------------------------------------------------------------------\r\n");
-                var orderedList = list.OrderBy(i => i).ToList();
-                Parallel.ForEach(orderedList, (item, state, subtotal) =>
-                {
-                    var val = item[..1];
-
-                    package.Add(ref package.Data[int.Parse(val) - 1]);
-                    package.Add(ref total);
-
-
-                });
-                package.Add(ref package.Total, total);
-                _output.Append(GenerateOutput(package));
-
-                output2.Append(_output);
-
-                await Console.Out.WriteLineAsync(_output);
-            }
+            await ProcessFiles(pathPrefix, output2, electionFiles);
 
             #endregion
 
@@ -217,6 +235,65 @@ internal class Program
             await Console.Out.WriteLineAsync("BENFORD ANALYSIS FAILED");
             await Console.Out.WriteLineAsync("Could not find the project directory. Run from Visual Studio or cd into the 'Benford' folder and use 'dotnet run'.");
             await Console.Out.WriteLineAsync();
+        }
+    }
+    private static async Task ProcessFiles(string pathPrefix, StringBuilder output2, string[] electionFiles)
+    {
+        foreach (var electionFile in electionFiles)
+        {
+            var list = await File.ReadAllLinesAsync(Path.Combine(pathPrefix, electionFile));
+            var package = new Package();
+            var _output = new StringBuilder();
+            _output.Append($"Analyzing {electionFile} ({list.Length:0,000}" + " items)...\r\n---------------------------------------------------------------------------\r\n");
+            foreach (var item in list.OrderBy(i => i))
+            {
+                var val = item[..1];
+
+                switch (val)
+                {
+                    case "1": package.Data[0]++; break;
+                    case "2": package.Data[1]++; break;
+                    case "3": package.Data[2]++; break;
+                    case "4": package.Data[3]++; break;
+                    case "5": package.Data[4]++; break;
+                    case "6": package.Data[5]++; break;
+                    case "7": package.Data[6]++; break;
+                    case "8": package.Data[7]++; break;
+                    case "9": package.Data[8]++; break;
+                }
+                package.Total++;
+            }
+
+            output2.Append(_output);
+
+            await Console.Out.WriteLineAsync(_output);
+        }
+    }
+    private static async Task ParallelProcessFiles(string pathPrefix, StringBuilder output2, string[] electionFiles)
+    {
+        foreach (var electionFile in electionFiles)
+        {
+            var list = await File.ReadAllLinesAsync(Path.Combine(pathPrefix, electionFile));
+            var package = new Package();
+            var _output = new StringBuilder();
+            double total = 0;
+            _output.Append($"Analyzing {electionFile} ({list.Length:0,000}" + " items)...\r\n---------------------------------------------------------------------------\r\n");
+            var orderedList = list.OrderBy(i => i).ToList();
+            Parallel.ForEach(orderedList, (item, state, subtotal) =>
+            {
+                var val = item[..1];
+
+                package.Add(ref package.Data[int.Parse(val) - 1]);
+                package.Add(ref total);
+
+
+            });
+            package.Add(ref package.Total, total);
+            _output.Append(GenerateOutput(package));
+
+            output2.Append(_output);
+
+            await Console.Out.WriteLineAsync(_output);
         }
     }
 }
