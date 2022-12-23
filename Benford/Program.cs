@@ -108,8 +108,8 @@ internal class Program
                        package.Add(ref package.Total);
 
                    });
-                  
-                   
+
+
                 }
             });
         }
@@ -195,7 +195,9 @@ internal class Program
                 await Console.Out.WriteLineAsync(_output);
             }
             var endTime = DateTime.Now;
-            await Console.Out.WriteLineAsync($"Process Time:{endTime - startTime}");
+            var strDuration = $"Process Time:{endTime - startTime}";
+            output.Append(strDuration);
+            await Console.Out.WriteLineAsync(strDuration);
             #endregion
 
             // Append image results to list.txt results
